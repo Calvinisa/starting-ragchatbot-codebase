@@ -48,6 +48,7 @@ RUNNING THESE TESTS:
     cd backend
     uv run pytest tests/test_course_search_tool.py -v
 """
+
 import pytest
 import sys
 import os
@@ -79,7 +80,9 @@ class TestCourseSearchToolExecute:
     - Assert: Verify the expected behavior occurred
     """
 
-    def test_execute_returns_formatted_results_on_success(self, mock_vector_store, sample_search_results):
+    def test_execute_returns_formatted_results_on_success(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that execute returns properly formatted results when search succeeds.
 
@@ -110,12 +113,12 @@ class TestCourseSearchToolExecute:
         assert isinstance(result, str)
         assert "MCP architecture" in result or "Build Rich-Context" in result
         mock_vector_store.search.assert_called_once_with(
-            query="MCP architecture",
-            course_name=None,
-            lesson_number=None
+            query="MCP architecture", course_name=None, lesson_number=None
         )
 
-    def test_execute_with_course_name_filter(self, mock_vector_store, sample_search_results):
+    def test_execute_with_course_name_filter(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that execute correctly passes course_name filter to VectorStore.
 
@@ -142,12 +145,12 @@ class TestCourseSearchToolExecute:
 
         # Assert: Verify course_name was passed correctly
         mock_vector_store.search.assert_called_once_with(
-            query="test query",
-            course_name="MCP",
-            lesson_number=None
+            query="test query", course_name="MCP", lesson_number=None
         )
 
-    def test_execute_with_lesson_number_filter(self, mock_vector_store, sample_search_results):
+    def test_execute_with_lesson_number_filter(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that execute correctly passes lesson_number filter to VectorStore.
 
@@ -174,9 +177,7 @@ class TestCourseSearchToolExecute:
 
         # Assert: Verify lesson_number was passed correctly
         mock_vector_store.search.assert_called_once_with(
-            query="test query",
-            course_name=None,
-            lesson_number=3
+            query="test query", course_name=None, lesson_number=3
         )
 
     def test_execute_with_all_filters(self, mock_vector_store, sample_search_results):
@@ -206,12 +207,12 @@ class TestCourseSearchToolExecute:
 
         # Assert: Verify both filters were passed
         mock_vector_store.search.assert_called_once_with(
-            query="test query",
-            course_name="MCP",
-            lesson_number=2
+            query="test query", course_name="MCP", lesson_number=2
         )
 
-    def test_execute_returns_error_message_on_search_error(self, mock_vector_store, error_search_results):
+    def test_execute_returns_error_message_on_search_error(
+        self, mock_vector_store, error_search_results
+    ):
         """
         Test that execute returns a user-friendly error message when search fails.
 
@@ -239,7 +240,9 @@ class TestCourseSearchToolExecute:
         # Assert: Error message appears in output
         assert "No course found matching 'nonexistent'" in result
 
-    def test_execute_returns_no_content_message_on_empty_results(self, mock_vector_store, empty_search_results):
+    def test_execute_returns_no_content_message_on_empty_results(
+        self, mock_vector_store, empty_search_results
+    ):
         """
         Test that execute returns appropriate message when no results are found.
 
@@ -266,7 +269,9 @@ class TestCourseSearchToolExecute:
         # Assert: Appropriate empty message
         assert "No relevant content found" in result
 
-    def test_execute_stores_sources_after_successful_search(self, mock_vector_store, sample_search_results):
+    def test_execute_stores_sources_after_successful_search(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that execute stores sources for later retrieval (for citations).
 
@@ -295,7 +300,9 @@ class TestCourseSearchToolExecute:
         assert len(tool.last_sources) > 0
         assert all("text" in source for source in tool.last_sources)
 
-    def test_execute_includes_lesson_info_in_formatted_output(self, mock_vector_store, sample_search_results):
+    def test_execute_includes_lesson_info_in_formatted_output(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that formatted output includes lesson information for context.
 
@@ -403,7 +410,9 @@ class TestToolManager:
         # Assert: Tool is in the registry under its name
         assert "search_course_content" in manager.tools
 
-    def test_execute_tool_calls_correct_tool(self, mock_vector_store, sample_search_results):
+    def test_execute_tool_calls_correct_tool(
+        self, mock_vector_store, sample_search_results
+    ):
         """
         Test that execute_tool routes execution to the correct registered tool.
 

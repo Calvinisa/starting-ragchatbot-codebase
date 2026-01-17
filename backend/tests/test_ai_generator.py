@@ -70,6 +70,7 @@ RUNNING THESE TESTS:
     cd backend
     uv run pytest tests/test_ai_generator.py -v
 """
+
 import pytest
 import sys
 import os
@@ -108,6 +109,7 @@ class MockToolUseBlock:
         tool_block = MockToolUseBlock(input={"query": "custom query"})
         mock_response.content = [tool_block]
     """
+
     type: str = "tool_use"
     id: str = "tool_123"
     name: str = "search_course_content"
@@ -140,6 +142,7 @@ class MockTextBlock:
         text_block = MockTextBlock(text="Custom response")
         mock_response.content = [text_block]
     """
+
     type: str = "text"
     text: str = "Here is the answer based on the search."
 
@@ -189,8 +192,12 @@ class TestAIGeneratorToolCalling:
             We also directly assign generator.client = mock_anthropic_client
             to ensure the mock is properly connected.
         """
-        with patch('ai_generator.anthropic.Anthropic', return_value=mock_anthropic_client):
-            generator = AIGenerator(api_key="test-key", model="claude-sonnet-4-20250514")
+        with patch(
+            "ai_generator.anthropic.Anthropic", return_value=mock_anthropic_client
+        ):
+            generator = AIGenerator(
+                api_key="test-key", model="claude-sonnet-4-20250514"
+            )
             generator.client = mock_anthropic_client
             return generator
 
@@ -218,7 +225,9 @@ class TestAIGeneratorToolCalling:
         manager.register_tool(tool)
         return manager
 
-    def test_generate_response_calls_api_with_tools(self, ai_generator, mock_tool_manager):
+    def test_generate_response_calls_api_with_tools(
+        self, ai_generator, mock_tool_manager
+    ):
         """
         Test that generate_response includes tools in API call when provided.
 
@@ -244,9 +253,7 @@ class TestAIGeneratorToolCalling:
 
         # Act: Generate response with tools
         result = ai_generator.generate_response(
-            query="What is MCP?",
-            tools=tools,
-            tool_manager=mock_tool_manager
+            query="What is MCP?", tools=tools, tool_manager=mock_tool_manager
         )
 
         # Assert: API was called with tools
@@ -254,7 +261,9 @@ class TestAIGeneratorToolCalling:
         assert "tools" in call_args.kwargs
         assert call_args.kwargs["tools"] == tools
 
-    def test_generate_response_handles_tool_use_response(self, ai_generator, mock_tool_manager):
+    def test_generate_response_handles_tool_use_response(
+        self, ai_generator, mock_tool_manager
+    ):
         """
         Test that generate_response correctly handles tool_use stop_reason.
 
@@ -292,7 +301,10 @@ class TestAIGeneratorToolCalling:
         second_response.content = [MockTextBlock(text="MCP is a protocol for...")]
 
         # Configure mock to return responses in sequence
-        ai_generator.client.messages.create.side_effect = [first_response, second_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+        ]
 
         tools = mock_tool_manager.get_tool_definitions()
 
@@ -300,14 +312,16 @@ class TestAIGeneratorToolCalling:
         result = ai_generator.generate_response(
             query="What is MCP architecture?",
             tools=tools,
-            tool_manager=mock_tool_manager
+            tool_manager=mock_tool_manager,
         )
 
         # Assert: Loop made 2 calls, returned final text
         assert ai_generator.client.messages.create.call_count == 2
         assert result == "MCP is a protocol for..."
 
-    def test_generate_response_executes_correct_tool(self, ai_generator, mock_vector_store, sample_search_results):
+    def test_generate_response_executes_correct_tool(
+        self, ai_generator, mock_vector_store, sample_search_results
+    ):
         """
         Test that the correct tool is executed based on Claude's response.
 
@@ -352,13 +366,16 @@ class TestAIGeneratorToolCalling:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock()]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+        ]
 
         # Act
         result = ai_generator.generate_response(
             query="Tell me about MCP architecture",
             tools=tool_manager.get_tool_definitions(),
-            tool_manager=tool_manager
+            tool_manager=tool_manager,
         )
 
         # Assert: VectorStore.search was called with Claude's arguments
@@ -366,7 +383,9 @@ class TestAIGeneratorToolCalling:
         call_args = mock_vector_store.search.call_args
         assert call_args.kwargs["query"] == "MCP architecture"
 
-    def test_generate_response_passes_tool_results_back_to_claude(self, ai_generator, mock_tool_manager):
+    def test_generate_response_passes_tool_results_back_to_claude(
+        self, ai_generator, mock_tool_manager
+    ):
         """
         Test that tool results are correctly passed back to Claude.
 
@@ -402,13 +421,16 @@ class TestAIGeneratorToolCalling:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock()]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+        ]
 
         # Act
         result = ai_generator.generate_response(
             query="What is MCP?",
             tools=mock_tool_manager.get_tool_definitions(),
-            tool_manager=mock_tool_manager
+            tool_manager=mock_tool_manager,
         )
 
         # Assert: Check second API call's messages parameter
@@ -426,7 +448,9 @@ class TestAIGeneratorToolCalling:
         assert tool_result["type"] == "tool_result"
         assert tool_result["tool_use_id"] == "tool_123"  # Matches MockToolUseBlock.id
 
-    def test_generate_response_without_tools_returns_direct_response(self, ai_generator):
+    def test_generate_response_without_tools_returns_direct_response(
+        self, ai_generator
+    ):
         """
         Test that generate_response works without tools (no RAG).
 
@@ -487,8 +511,7 @@ class TestAIGeneratorToolCalling:
 
         # Act: Call with conversation history
         result = ai_generator.generate_response(
-            query="Follow up question",
-            conversation_history=history
+            query="Follow up question", conversation_history=history
         )
 
         # Assert: History included in system prompt
@@ -520,8 +543,10 @@ class TestAIGeneratorToolSelection:
             AIGenerator: Instance with accessible SYSTEM_PROMPT attribute
         """
         mock_client = Mock()
-        with patch('ai_generator.anthropic.Anthropic', return_value=mock_client):
-            generator = AIGenerator(api_key="test-key", model="claude-sonnet-4-20250514")
+        with patch("ai_generator.anthropic.Anthropic", return_value=mock_client):
+            generator = AIGenerator(
+                api_key="test-key", model="claude-sonnet-4-20250514"
+            )
             generator.client = mock_client
             return generator
 
@@ -587,8 +612,12 @@ class TestAIGeneratorMultiRoundToolCalling:
     @pytest.fixture
     def ai_generator(self, mock_anthropic_client):
         """Create AIGenerator with mocked client."""
-        with patch('ai_generator.anthropic.Anthropic', return_value=mock_anthropic_client):
-            generator = AIGenerator(api_key="test-key", model="claude-sonnet-4-20250514")
+        with patch(
+            "ai_generator.anthropic.Anthropic", return_value=mock_anthropic_client
+        ):
+            generator = AIGenerator(
+                api_key="test-key", model="claude-sonnet-4-20250514"
+            )
             generator.client = mock_anthropic_client
             return generator
 
@@ -625,27 +654,37 @@ class TestAIGeneratorMultiRoundToolCalling:
         # Round 2: Second tool call
         second_response = Mock()
         second_response.stop_reason = "tool_use"
-        second_response.content = [MockToolUseBlock(id="tool_2", input={"query": "follow-up search"})]
+        second_response.content = [
+            MockToolUseBlock(id="tool_2", input={"query": "follow-up search"})
+        ]
 
         # Final: Text response
         third_response = Mock()
         third_response.stop_reason = "end_turn"
-        third_response.content = [MockTextBlock(text="Based on both searches, here is the answer.")]
+        third_response.content = [
+            MockTextBlock(text="Based on both searches, here is the answer.")
+        ]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response, third_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+            third_response,
+        ]
 
         tools = mock_tool_manager.get_tool_definitions()
         result = ai_generator.generate_response(
             query="Compare topics across courses",
             tools=tools,
-            tool_manager=mock_tool_manager
+            tool_manager=mock_tool_manager,
         )
 
         # Assert: 3 API calls made
         assert ai_generator.client.messages.create.call_count == 3
         assert result == "Based on both searches, here is the answer."
 
-    def test_second_round_no_tool_call_terminates_early(self, ai_generator, mock_tool_manager):
+    def test_second_round_no_tool_call_terminates_early(
+        self, ai_generator, mock_tool_manager
+    ):
         """
         Test that loop terminates when Claude responds without tool use in round 2.
 
@@ -662,13 +701,14 @@ class TestAIGeneratorMultiRoundToolCalling:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock(text="Answer after one search.")]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+        ]
 
         tools = mock_tool_manager.get_tool_definitions()
         result = ai_generator.generate_response(
-            query="Simple question",
-            tools=tools,
-            tool_manager=mock_tool_manager
+            query="Simple question", tools=tools, tool_manager=mock_tool_manager
         )
 
         # Assert: Only 2 API calls (terminated early)
@@ -696,13 +736,17 @@ class TestAIGeneratorMultiRoundToolCalling:
         final_response.stop_reason = "end_turn"
         final_response.content = [MockTextBlock(text="Forced final answer.")]
 
-        ai_generator.client.messages.create.side_effect = [tool_response_1, tool_response_2, final_response]
+        ai_generator.client.messages.create.side_effect = [
+            tool_response_1,
+            tool_response_2,
+            final_response,
+        ]
 
         tools = mock_tool_manager.get_tool_definitions()
         result = ai_generator.generate_response(
             query="Complex multi-step query",
             tools=tools,
-            tool_manager=mock_tool_manager
+            tool_manager=mock_tool_manager,
         )
 
         # Assert: 3 API calls total
@@ -724,7 +768,9 @@ class TestAIGeneratorMultiRoundToolCalling:
         # Create a tool manager that will fail
         mock_tool_manager = Mock()
         mock_tool_manager.get_tool_definitions.return_value = [{"name": "test_tool"}]
-        mock_tool_manager.execute_tool.side_effect = Exception("Database connection failed")
+        mock_tool_manager.execute_tool.side_effect = Exception(
+            "Database connection failed"
+        )
 
         # Round 1: Tool call
         first_response = Mock()
@@ -734,14 +780,19 @@ class TestAIGeneratorMultiRoundToolCalling:
         # Round 2: Claude responds after seeing error
         second_response = Mock()
         second_response.stop_reason = "end_turn"
-        second_response.content = [MockTextBlock(text="I encountered an error but here is what I know.")]
+        second_response.content = [
+            MockTextBlock(text="I encountered an error but here is what I know.")
+        ]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+        ]
 
         result = ai_generator.generate_response(
             query="Test query",
             tools=mock_tool_manager.get_tool_definitions(),
-            tool_manager=mock_tool_manager
+            tool_manager=mock_tool_manager,
         )
 
         # Assert: Error was handled gracefully
@@ -753,7 +804,9 @@ class TestAIGeneratorMultiRoundToolCalling:
         tool_result_message = messages[2]["content"][0]
         assert "Error executing test_tool" in tool_result_message["content"]
 
-    def test_message_history_accumulates_correctly(self, ai_generator, mock_tool_manager):
+    def test_message_history_accumulates_correctly(
+        self, ai_generator, mock_tool_manager
+    ):
         """
         Test that message history is correctly built across rounds.
 
@@ -779,13 +832,15 @@ class TestAIGeneratorMultiRoundToolCalling:
         third_response.stop_reason = "end_turn"
         third_response.content = [MockTextBlock()]
 
-        ai_generator.client.messages.create.side_effect = [first_response, second_response, third_response]
+        ai_generator.client.messages.create.side_effect = [
+            first_response,
+            second_response,
+            third_response,
+        ]
 
         tools = mock_tool_manager.get_tool_definitions()
         ai_generator.generate_response(
-            query="Multi-step question",
-            tools=tools,
-            tool_manager=mock_tool_manager
+            query="Multi-step question", tools=tools, tool_manager=mock_tool_manager
         )
 
         # Check final API call's message structure

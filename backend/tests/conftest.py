@@ -30,6 +30,7 @@ FIXTURE CATEGORIES:
 2. Component Fixtures: mock_vector_store
 3. Data Fixtures: sample_search_results, empty_search_results, error_search_results
 """
+
 import pytest
 import sys
 import os
@@ -65,6 +66,7 @@ class MockConfig:
         config = MockConfig()
         rag_system = RAGSystem(config)
     """
+
     ANTHROPIC_API_KEY: str = "test-api-key"
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
@@ -165,14 +167,22 @@ def sample_search_results():
     return SearchResults(
         documents=[
             "This is content about MCP architecture and how it works.",
-            "More content about building MCP servers."
+            "More content about building MCP servers.",
         ],
         metadata=[
-            {"course_title": "Build Rich-Context AI Apps with Anthropic", "lesson_number": 2, "chunk_index": 0},
-            {"course_title": "Build Rich-Context AI Apps with Anthropic", "lesson_number": 4, "chunk_index": 0}
+            {
+                "course_title": "Build Rich-Context AI Apps with Anthropic",
+                "lesson_number": 2,
+                "chunk_index": 0,
+            },
+            {
+                "course_title": "Build Rich-Context AI Apps with Anthropic",
+                "lesson_number": 4,
+                "chunk_index": 0,
+            },
         ],
         distances=[0.1, 0.2],  # Lower distance = more semantically similar
-        error=None  # No error means search succeeded
+        error=None,  # No error means search succeeded
     )
 
 
@@ -204,7 +214,7 @@ def empty_search_results():
         documents=[],
         metadata=[],
         distances=[],
-        error=None  # No error - search worked, just found nothing
+        error=None,  # No error - search worked, just found nothing
     )
 
 
@@ -238,5 +248,5 @@ def error_search_results():
         documents=[],
         metadata=[],
         distances=[],
-        error="No course found matching 'nonexistent'"  # Error from fuzzy course matching
+        error="No course found matching 'nonexistent'",  # Error from fuzzy course matching
     )

@@ -84,6 +84,7 @@ RUNNING THESE TESTS:
     cd backend
     uv run pytest tests/test_rag_system.py -v
 """
+
 import pytest
 import sys
 import os
@@ -109,6 +110,7 @@ class MockConfig:
     need it locally for the mock_dependencies fixture. In a larger
     codebase, you might refactor to share this.
     """
+
     ANTHROPIC_API_KEY: str = "test-api-key"
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
@@ -130,6 +132,7 @@ class MockToolUseBlock:
     Note: Duplicated here because these tests define their own
     response sequences independent of AIGenerator tests.
     """
+
     type: str = "tool_use"
     id: str = "tool_123"
     name: str = "search_course_content"
@@ -148,6 +151,7 @@ class MockTextBlock:
     Simulates Claude's final text response.
     See test_ai_generator.py for detailed documentation.
     """
+
     type: str = "text"
     text: str = "Here is the answer."
 
@@ -197,21 +201,25 @@ class TestRAGSystemContentQueries:
         mocks = {}
 
         # Mock VectorStore with complete interface
-        mocks['vector_store'] = Mock()
-        mocks['vector_store'].search.return_value = SearchResults(
+        mocks["vector_store"] = Mock()
+        mocks["vector_store"].search.return_value = SearchResults(
             documents=["Content about MCP"],
-            metadata=[{"course_title": "MCP Course", "lesson_number": 1, "chunk_index": 0}],
+            metadata=[
+                {"course_title": "MCP Course", "lesson_number": 1, "chunk_index": 0}
+            ],
             distances=[0.1],
-            error=None
+            error=None,
         )
-        mocks['vector_store'].get_lesson_link.return_value = "https://example.com/lesson"
-        mocks['vector_store'].get_course_count.return_value = 4
-        mocks['vector_store'].get_existing_course_titles.return_value = ["MCP Course"]
-        mocks['vector_store'].course_catalog = Mock()
-        mocks['vector_store'].course_content = Mock()
+        mocks["vector_store"].get_lesson_link.return_value = (
+            "https://example.com/lesson"
+        )
+        mocks["vector_store"].get_course_count.return_value = 4
+        mocks["vector_store"].get_existing_course_titles.return_value = ["MCP Course"]
+        mocks["vector_store"].course_catalog = Mock()
+        mocks["vector_store"].course_content = Mock()
 
         # Mock Anthropic client (will be configured per-test)
-        mocks['anthropic_client'] = Mock()
+        mocks["anthropic_client"] = Mock()
 
         return mocks
 
@@ -235,16 +243,23 @@ class TestRAGSystemContentQueries:
             they're properly connected (patches affect initialization,
             but we need references for assertions).
         """
-        with patch('rag_system.VectorStore', return_value=mock_dependencies['vector_store']), \
-             patch('rag_system.DocumentProcessor'), \
-             patch('rag_system.SessionManager'), \
-             patch('ai_generator.anthropic.Anthropic', return_value=mock_dependencies['anthropic_client']):
+        with (
+            patch(
+                "rag_system.VectorStore", return_value=mock_dependencies["vector_store"]
+            ),
+            patch("rag_system.DocumentProcessor"),
+            patch("rag_system.SessionManager"),
+            patch(
+                "ai_generator.anthropic.Anthropic",
+                return_value=mock_dependencies["anthropic_client"],
+            ),
+        ):
 
             config = MockConfig()
             system = RAGSystem(config)
             # Ensure mocks are connected for assertion purposes
-            system.vector_store = mock_dependencies['vector_store']
-            system.ai_generator.client = mock_dependencies['anthropic_client']
+            system.vector_store = mock_dependencies["vector_store"]
+            system.ai_generator.client = mock_dependencies["anthropic_client"]
             return system
 
     def test_query_passes_tools_to_ai_generator(self, rag_system, mock_dependencies):
@@ -271,19 +286,23 @@ class TestRAGSystemContentQueries:
         mock_response = Mock()
         mock_response.stop_reason = "end_turn"
         mock_response.content = [MockTextBlock()]
-        mock_dependencies['anthropic_client'].messages.create.return_value = mock_response
+        mock_dependencies["anthropic_client"].messages.create.return_value = (
+            mock_response
+        )
 
         # Act
         response, sources = rag_system.query("What is MCP?")
 
         # Assert: Tools were passed to API call
-        call_args = mock_dependencies['anthropic_client'].messages.create.call_args
+        call_args = mock_dependencies["anthropic_client"].messages.create.call_args
         assert "tools" in call_args.kwargs
         tools = call_args.kwargs["tools"]
         tool_names = [t["name"] for t in tools]
         assert "search_course_content" in tool_names
 
-    def test_query_handles_tool_execution_for_content_questions(self, rag_system, mock_dependencies):
+    def test_query_handles_tool_execution_for_content_questions(
+        self, rag_system, mock_dependencies
+    ):
         """
         Test that content questions trigger the complete tool execution loop.
 
@@ -306,9 +325,7 @@ class TestRAGSystemContentQueries:
         search() -> [tool_result] -> generate_response() -> [text] -> return
         """
         # Arrange: Set up tool_use then text response sequence
-        tool_use_block = MockToolUseBlock(
-            input={"query": "MCP architecture"}
-        )
+        tool_use_block = MockToolUseBlock(input={"query": "MCP architecture"})
 
         first_response = Mock()
         first_response.stop_reason = "tool_use"
@@ -318,17 +335,18 @@ class TestRAGSystemContentQueries:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock(text="MCP architecture allows...")]
 
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
 
         # Act
         response, sources = rag_system.query("Tell me about MCP architecture")
 
         # Assert: Complete loop executed
-        assert mock_dependencies['anthropic_client'].messages.create.call_count == 2
+        assert mock_dependencies["anthropic_client"].messages.create.call_count == 2
         assert "MCP architecture" in response
-        mock_dependencies['vector_store'].search.assert_called_once()
+        mock_dependencies["vector_store"].search.assert_called_once()
 
     def test_query_returns_sources_after_search(self, rag_system, mock_dependencies):
         """
@@ -363,8 +381,9 @@ class TestRAGSystemContentQueries:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock()]
 
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
 
         # Act
@@ -407,18 +426,20 @@ class TestRAGSystemContentQueries:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock()]
 
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
 
         # Act: First query
         response1, sources1 = rag_system.query("First query")
 
         # Reset mocks for second query
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
-        mock_dependencies['vector_store'].search.reset_mock()
+        mock_dependencies["vector_store"].search.reset_mock()
 
         # Act: Second query
         response2, sources2 = rag_system.query("Second query")
@@ -449,11 +470,11 @@ class TestRAGSystemContentQueries:
         Claude receives error -> Claude explains to user
         """
         # Arrange: Configure search to return error
-        mock_dependencies['vector_store'].search.return_value = SearchResults(
+        mock_dependencies["vector_store"].search.return_value = SearchResults(
             documents=[],
             metadata=[],
             distances=[],
-            error="No course found matching 'nonexistent'"
+            error="No course found matching 'nonexistent'",
         )
 
         tool_use_block = MockToolUseBlock(
@@ -466,10 +487,13 @@ class TestRAGSystemContentQueries:
 
         second_response = Mock()
         second_response.stop_reason = "end_turn"
-        second_response.content = [MockTextBlock(text="I could not find information about that.")]
+        second_response.content = [
+            MockTextBlock(text="I could not find information about that.")
+        ]
 
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
 
         # Act: Should not raise exception
@@ -500,11 +524,8 @@ class TestRAGSystemContentQueries:
         This tests the boundary between "nothing found" and "error occurred".
         """
         # Arrange: Configure search to return empty results (no error)
-        mock_dependencies['vector_store'].search.return_value = SearchResults(
-            documents=[],
-            metadata=[],
-            distances=[],
-            error=None  # No error, just empty
+        mock_dependencies["vector_store"].search.return_value = SearchResults(
+            documents=[], metadata=[], distances=[], error=None  # No error, just empty
         )
 
         tool_use_block = MockToolUseBlock()
@@ -517,8 +538,9 @@ class TestRAGSystemContentQueries:
         second_response.stop_reason = "end_turn"
         second_response.content = [MockTextBlock(text="No relevant content found.")]
 
-        mock_dependencies['anthropic_client'].messages.create.side_effect = [
-            first_response, second_response
+        mock_dependencies["anthropic_client"].messages.create.side_effect = [
+            first_response,
+            second_response,
         ]
 
         # Act
@@ -552,10 +574,12 @@ class TestRAGSystemToolRegistration:
         Returns:
             RAGSystem: Instance with tools registered
         """
-        with patch('rag_system.VectorStore'), \
-             patch('rag_system.DocumentProcessor'), \
-             patch('rag_system.SessionManager'), \
-             patch('ai_generator.anthropic.Anthropic'):
+        with (
+            patch("rag_system.VectorStore"),
+            patch("rag_system.DocumentProcessor"),
+            patch("rag_system.SessionManager"),
+            patch("ai_generator.anthropic.Anthropic"),
+        ):
 
             config = MockConfig()
             return RAGSystem(config)
@@ -647,9 +671,9 @@ class TestVectorStoreSearch:
 
         # Mock query results in ChromaDB's format
         mock_collection.query.return_value = {
-            'documents': [['Content about topic']],  # Nested list!
-            'metadatas': [[{'course_title': 'Test Course', 'lesson_number': 1}]],
-            'distances': [[0.1]]
+            "documents": [["Content about topic"]],  # Nested list!
+            "metadatas": [[{"course_title": "Test Course", "lesson_number": 1}]],
+            "distances": [[0.1]],
         }
 
         mock_client.get_or_create_collection.return_value = mock_collection
@@ -671,10 +695,18 @@ class TestVectorStoreSearch:
         - VectorStore initializes ChromaDB client
         - search() calls collection.query()
         """
-        with patch('vector_store.chromadb.PersistentClient', return_value=mock_chroma_client), \
-             patch('vector_store.chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction'):
+        with (
+            patch(
+                "vector_store.chromadb.PersistentClient",
+                return_value=mock_chroma_client,
+            ),
+            patch(
+                "vector_store.chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction"
+            ),
+        ):
 
             from vector_store import VectorStore
+
             store = VectorStore("./test_db", "all-MiniLM-L6-v2")
 
             # Act
@@ -706,10 +738,18 @@ class TestVectorStoreSearch:
         - distances: List[float]
         - error: Optional[str]
         """
-        with patch('vector_store.chromadb.PersistentClient', return_value=mock_chroma_client), \
-             patch('vector_store.chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction'):
+        with (
+            patch(
+                "vector_store.chromadb.PersistentClient",
+                return_value=mock_chroma_client,
+            ),
+            patch(
+                "vector_store.chromadb.utils.embedding_functions.SentenceTransformerEmbeddingFunction"
+            ),
+        ):
 
             from vector_store import VectorStore, SearchResults
+
             store = VectorStore("./test_db", "all-MiniLM-L6-v2")
 
             # Act
@@ -717,6 +757,6 @@ class TestVectorStoreSearch:
 
             # Assert: Correct return type with expected attributes
             assert isinstance(results, SearchResults)
-            assert hasattr(results, 'documents')
-            assert hasattr(results, 'metadata')
-            assert hasattr(results, 'error')
+            assert hasattr(results, "documents")
+            assert hasattr(results, "metadata")
+            assert hasattr(results, "error")

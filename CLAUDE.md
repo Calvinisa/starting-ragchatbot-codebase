@@ -19,6 +19,16 @@ cd backend && uv run pytest tests/ -v
 
 # Run tests with coverage
 cd backend && uv run pytest tests/ --cov=. --cov-report=html
+
+# Format code with black
+uv run black backend/ main.py
+
+# Check formatting without changes
+uv run black --check backend/ main.py
+
+# Run quality checks script (requires Git Bash on Windows)
+./quality.sh          # Format code
+./quality.sh --check  # Check only
 ```
 
 The web interface is available at `http://localhost:8000` and API docs at `http://localhost:8000/docs`.
