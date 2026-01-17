@@ -27,14 +27,16 @@ Fixtures defined here are available to ALL test files in this directory.
 FIXTURE CATEGORIES:
 -------------------
 1. Configuration Fixtures: MockConfig, mock_config
-2. Component Fixtures: mock_vector_store
+2. Component Fixtures: mock_vector_store, mock_rag_system
 3. Data Fixtures: sample_search_results, empty_search_results, error_search_results
+4. API Testing Fixtures: test_client, async_test_client
 """
 import pytest
 import sys
 import os
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 from dataclasses import dataclass
+from typing import Generator
 
 # Add backend to path so we can import our application modules
 # This is necessary because tests run from a different directory
@@ -240,3 +242,184 @@ def error_search_results():
         distances=[],
         error="No course found matching 'nonexistent'"  # Error from fuzzy course matching
     )
+
+
+# =============================================================================
+# API TESTING FIXTURES
+# =============================================================================
+
+@pytest.fixture
+def mock_rag_system(sample_search_results):
+    """
+    Create a mock RAGSystem for API testing.
+
+    This fixture creates a mock RAGSystem that can be used to test API endpoints
+    without requiring actual AI calls or database connections. The mock is
+    pre-configured with reasonable defaults that can be overridden per test.
+
+    Returns:
+        Mock: A mock RAGSystem with pre-configured return values.
+
+    Pre-configured Behaviors:
+        - query(): Returns ("Mock response", [{"text": "Source 1", "link": "http://example.com"}])
+        - get_course_analytics(): Returns {"total_courses": 3, "course_titles": ["Course A", "Course B", "Course C"]}
+        - session_manager.create_session(): Returns "test-session-123"
+
+    Example:
+        def test_api_query(mock_rag_system, test_client):
+            mock_rag_system.query.return_value = ("Custom response", [])
+            response = test_client.post("/api/query", json={"query": "test"})
+            assert response.json()["answer"] == "Custom response"
+    """
+    mock_system = Mock()
+
+    # Configure query method
+    mock_system.query.return_value = (
+        "This is a mock response about the course content.",
+        [{"text": "MCP Course - Lesson 1", "link": "https://example.com/lesson1"}]
+    )
+
+    # Configure analytics method
+    mock_system.get_course_analytics.return_value = {
+        "total_courses": 3,
+        "course_titles": ["Course A", "Course B", "Course C"]
+    }
+
+    # Configure session manager
+    mock_system.session_manager = Mock()
+    mock_system.session_manager.create_session.return_value = "test-session-123"
+
+    return mock_system
+
+
+@pytest.fixture
+def test_app(mock_rag_system):
+    """
+    Create a FastAPI test app without static file mounting.
+
+    The main app.py mounts static files that may not exist in the test environment.
+    This fixture creates a minimal FastAPI app with just the API endpoints for testing.
+
+    Returns:
+        FastAPI: A test application with API endpoints but no static file handling.
+
+    Why Not Import app.py Directly:
+        - app.py mounts static files from ../frontend which may not exist
+        - app.py initializes a real RAGSystem at import time
+        - Tests need to control the RAGSystem mock
+
+    Example:
+        def test_endpoint(test_app):
+            client = TestClient(test_app)
+            response = client.get("/api/courses")
+            assert response.status_code == 200
+    """
+    from fastapi import FastAPI, HTTPException
+    from pydantic import BaseModel
+    from typing import List, Optional
+
+    # Create test app
+    app = FastAPI(title="Course Materials RAG System - Test")
+
+    # Pydantic models (mirrors app.py)
+    class QueryRequest(BaseModel):
+        query: str
+        session_id: Optional[str] = None
+
+    class Source(BaseModel):
+        text: str
+        link: Optional[str] = None
+
+    class QueryResponse(BaseModel):
+        answer: str
+        sources: List[Source]
+        session_id: str
+
+    class CourseStats(BaseModel):
+        total_courses: int
+        course_titles: List[str]
+
+    # API endpoints (mirrors app.py)
+    @app.post("/api/query", response_model=QueryResponse)
+    async def query_documents(request: QueryRequest):
+        try:
+            session_id = request.session_id
+            if not session_id:
+                session_id = mock_rag_system.session_manager.create_session()
+
+            answer, sources = mock_rag_system.query(request.query, session_id)
+
+            return QueryResponse(
+                answer=answer,
+                sources=sources,
+                session_id=session_id
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/courses", response_model=CourseStats)
+    async def get_course_stats():
+        try:
+            analytics = mock_rag_system.get_course_analytics()
+            return CourseStats(
+                total_courses=analytics["total_courses"],
+                course_titles=analytics["course_titles"]
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/")
+    async def root():
+        """Health check endpoint for testing."""
+        return {"status": "ok", "message": "RAG System API"}
+
+    return app
+
+
+@pytest.fixture
+def test_client(test_app):
+    """
+    Create a synchronous test client for API testing.
+
+    Uses Starlette's TestClient which is the standard approach for testing
+    FastAPI/Starlette applications synchronously.
+
+    Returns:
+        TestClient: A synchronous HTTP client configured for the test app.
+
+    Example:
+        def test_courses_endpoint(test_client):
+            response = test_client.get("/api/courses")
+            assert response.status_code == 200
+            assert "total_courses" in response.json()
+    """
+    from starlette.testclient import TestClient
+
+    with TestClient(test_app) as client:
+        yield client
+
+
+@pytest.fixture
+async def async_test_client(test_app):
+    """
+    Create an async test client for API testing.
+
+    Uses httpx.AsyncClient for testing async endpoints. Use this when you
+    need to test async behaviors or when working with async fixtures.
+
+    Returns:
+        httpx.AsyncClient: An async HTTP client configured for the test app.
+
+    Example:
+        async def test_async_query(async_test_client):
+            response = await async_test_client.post(
+                "/api/query",
+                json={"query": "What is MCP?"}
+            )
+            assert response.status_code == 200
+    """
+    from httpx import AsyncClient, ASGITransport
+
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
